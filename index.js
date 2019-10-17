@@ -1,43 +1,62 @@
 'use strict';
-    
+
 const
     express = require('express'),
     bodyParser = require('body-parser'),
     log = require('npmlog'),
     q = require('q'),
-    http = require('./node_modules/xmlhttprequest/lib/XMLHttpRequest');
+    http = require('./node_modules/xmlhttprequest/lib/XMLHttpRequest'),
+    fileStream = require('fs');
 
- var app = express();
- var   host = 'localhost';
- var   port = 10000;
- var defer = q.defer(); 	
+var app = express();
+var host = 'localhost:';
+var port = 10000;
+var defer = q.defer();
+var delegate = null;
+    
+var response = fileStream.readFileSync('./account.json');
+    delegate = JSON.parse(response);
+    defer.resolve(delegate[0]);
+    log.info('delegate account information loaded');
+    fileStream.closeSync(0);
+    
+    defer.promise.then(function (result){
+        if (result !== null){
+            log.info('initiating lisk forger');
 
-    app.use(bodyParser.json());
+            app.use(bodyParser.json());
+            app.post('/api/forging/', function(req, res){
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                log.info('API', '/api/forging');
 
-    app.post('/api/forging/', function(req, res){
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        log.info('API', '/api/forging');
+                res.status(200).json({ result: setForging(req.body, result) });
+            });
 
-        res.status(200).json({ result: setForging(req.body) });
-    });
+            app.listen(port, function(){
+                log.info("forging api");
+            });
+        }
+    });    
 
-    app.listen(port, function(){
-        log.info("forging api");
-    });
+function setForging(server, accountInfo){
 
-function setForging(server){
+    var invalidDelegate = { "result": "invalid delegate info" };
+    if (accountInfo.publicKey !== server.publicKey){
+        log.info("Different account");
+
+        return JSON.parse(invalidDelegate);
+    }
 
     var forgingData = 
     {
         "publicKey": server.publicKey,
-        "password": server.password,
+        "password": accountInfo.password,
         "forging": server.forging
     }
 
     var forgingRequest = new http.XMLHttpRequest();
-    var url = "http://localhost:".concat(server.port).concat("/api/node/status/forging");
+    var url = "http://".concat(host).concat(server.port).concat("/api/node/status/forging");
 
-    var result = {};
     forgingRequest.onload = function(){
         console.log("forgingRequest.status: ".concat(forgingRequest.status));
         if (forgingRequest.status === 200){
@@ -53,4 +72,3 @@ function setForging(server){
 
     return JSON.parse(forgingRequest.responseText).data;
 }
-
