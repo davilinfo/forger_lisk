@@ -3,25 +3,17 @@
 const
     express = require('express'),
     bodyParser = require('body-parser'),
-    log = require('npmlog'),
-    q = require('q'),
+    log = require('npmlog'),  
     http = require('./node_modules/xmlhttprequest/lib/XMLHttpRequest'),
     fileStream = require('fs');
 
 var app = express();
 var host = 'localhost:';
 var port = 10000;
-var defer = q.defer();
-var delegate = null;
-    
-var response = fileStream.readFileSync('./account.json');
-    delegate = JSON.parse(response);
-    defer.resolve(delegate[0]);
-    log.info('delegate account information loaded');
-    fileStream.closeSync(0);
-    
-    defer.promise.then(function (result){
-        if (result !== null){
+
+initiate().then(function(response){
+    var accountInfo = JSON.parse(response)[0];
+        if (accountInfo !== null){
             log.info('initiating lisk forger');
 
             app.use(bodyParser.json());
@@ -29,14 +21,22 @@ var response = fileStream.readFileSync('./account.json');
                 res.setHeader('Access-Control-Allow-Origin', '*');
                 log.info('API', '/api/forging');
 
-                res.status(200).json({ result: setForging(req.body, result) });
+                res.status(200).json({ result: setForging(req.body, accountInfo) });
             });
 
             app.listen(port, function(){
-                log.info("forging api");
+                log.info("forging api service running");
             });
         }
-    });    
+});
+
+async function initiate(){
+    var response = fileStream.readFileSync('./account.json');
+    log.info('delegate account information loaded');
+    fileStream.closeSync(0);
+    
+    return response;
+}
 
 function setForging(server, accountInfo){
 
